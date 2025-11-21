@@ -39,10 +39,8 @@ class ExplorationNode(Node):
        else:
            self.get_logger().warn("navigation failed")
 
-
    def state_callback(self, msg):
        self.pose = msg
-
 
    def map_callback(self, msg):
        self.occupancy = StochOccupancyGrid2D(msg.info.resolution, msg.info.width, msg.info.height, msg.info.origin.position.x, msg.info.origin.position.y, window_size=9, default_val=0.5)
@@ -60,7 +58,7 @@ class ExplorationNode(Node):
        if len(frontiers) == 0:
            self.get_logger().info("exploration complete")
            return
-       goal = self.select_frontier(frontiers)
+       goal = self.select_frontiers(frontiers)
        if goal:
            self.send_goal(goal)
 
@@ -70,14 +68,13 @@ class ExplorationNode(Node):
        probs = self.occupancy.probs
        h, w = probs.shape
 
-
        for i in range(1, h-1):
            for j in range(1, w-1):
                if probs[i, j] < 0.2:
                    for dix, djy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                        neigh = probs[i+dix, j+djy]
                        if 0.4 < neigh < 0.6:
-                           x, y, = self.occupancy.grid_to_world(j, i)
+                           x, y = self.occupancy.grid_to_world(j, i) # remove the comma. 
                            frontiers.append((x,y))
                            break
        return self.cluster_frontiers(frontiers)
@@ -90,8 +87,6 @@ class ExplorationNode(Node):
        msg.pose.position.y = goal[1]
        msg.pose.orientation.w = 1.0
        self.goal_pub.publish(msg)
-
-   
 
 
 def main(args=None):

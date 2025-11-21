@@ -24,9 +24,12 @@ class Frontier_Explorer(Node):
         self.current_time = 0
         self.declare_parameter("active", True)
 
-        self.state_sub = # TODO make subscriber node
-        self.map_sub = # TODO make subscriber node
-        self.nav_success_sub = # TODO make subscriber node
+        # To-do; define these publishers.
+        self.state_sub = self.create_subscription(TurtleBotState, "/state", self.state_callback, 10)
+        self.map_sub = self.create_subscription(OccupancyGrid, "/map", self.map_callback, 10)
+        self.nav_success_sub = self.create_subscription(Bool, "/nav_success", self.nav_success_cb, 10)
+
+
         self.cmd_nav_pub = self.create_publisher(TurtleBotState, "/cmd_nav", 10)
         self.detector_sub = self.create_subscription(Bool, "/detector_bool", self.detector_cb, 10)
     
@@ -44,15 +47,24 @@ class Frontier_Explorer(Node):
         current_state = np.array([self.state.x, self.state.y])
         
         occupied_mask = np.where(self.occupancy.probs >= 0.5, 1, 0)
-		unknown_mask = # TODO use np.where to find unknown mask which is indicated by the value -1
-		unoccupied_mask = # TODO use np.where to find unknown mask which is indicated by values in range [0, 0.5)
+		unknown_mask =  np.where(self.occupancy.probs == -1, 1, 0) # TODO use np.where to find unknown mask which is indicated by the value -1
+		unoccupied_mask = np.where((self.occupancy.probs >= 0) & (self.occupancy.probs < 0.5), 1, 0) # TODO use np.where to find unknown mask which is indicated by values in range [0, 0.5)
 
         kernel = np.ones((window_size, window_size)) / window_size**2
-        occupied=# TODO 2d convolution of mask (use convolve2d) using kernel and mode='same'
-        unoccupied=# TODO 2d convolution of mask (use convolve2d) using kernel and mode='same'
-        unknown= # TODO 2d convolution of mask (use convolve2d) using kernel and mode='same'
+        occupied= convolve2d(occupied_mask, kernel, mode='same')
+        unoccupied=  convolve2d(unoccupied_mask, kernel, mode='same')                      
+        unknown=  convolve2d(unknown_mask, kernel, mode='same')                              
 
-        frontier_mask = # TODO use np.where to make frontier mask based on the 3 conditions of Exploration Heuristics
+        frontier_mask = np.where(
+            (unoccupied >= 0.30) &      # near free space
+            (unknown >= 0.20) &         # near unknown space
+            (occupied == 0),          # not near obstacles
+            1, 0
+        )
+
+        
+        
+        # TODO use np.where to make frontier mask based on the 3 conditions of Exploration Heuristics
         frontier_states = np.transpose(np.nonzero(np.transpose(frontier_mask)))
         frontier_states = self.occupancy.grid2state(frontier_states)
         
@@ -63,9 +75,11 @@ class Frontier_Explorer(Node):
         frontier_state = frontier_states[frontier_state,:]
 
        
-        msg = # TODO
-        msg.x, msg.y = #TODO
-	    # TODO below publish frontier state into cmd_nav topic
+        msg = TurtleBotState()
+        msg.x, msg.y = frontier_state[0], frontier_state[1]
+
+        self.cmd_nav_pub.publish(msg)
+        print(f"Publishing frontier goal: {msg.x:.2f}, {msg.y:.2f}")
 		
 
     
